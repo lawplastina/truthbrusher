@@ -375,6 +375,8 @@ class Api:
         user_id = self.lookup(username)["id"]
         page_counter = 0
         keep_going = True
+        backoff = 2 #defaults to 2 seconds per request, just to be safe
+        
         while keep_going:
             try:
                 url = f"/v1/accounts/{user_id}/statuses"
@@ -386,11 +388,24 @@ class Api:
                     logger.debug("--------------------------")
                     logger.debug(f"{url} {params}")
                 result = self._get(url, params=params)
+                
+                # TO RESPECT RATE LIMIT: Wait 2 secs between requests
+                time.sleep(2)
+                backoff = 2 #reset to 2 if request successful
+                
                 page_counter += 1
+                
             except json.JSONDecodeError as e:
                 logger.error(f"Unable to pull user #{user_id}'s statuses': {e}")
                 break
             except Exception as e:
+                
+                if "429" in str(e):
+                    backoff = min(backoff * 2, 300) # exponential backoff up to 5 mins
+                    logger.warning(f"Rate limited: backing off for {backoff} seconds.")
+                    time.sleep(backoff)
+                    continue
+
                 logger.error(f"Misc. error while pulling statuses for {user_id}: {e}")
                 break
 
@@ -472,3 +487,4 @@ class Api:
             raise ValueError("Invalid truthsocial.com credentials provided!")
 
         return sess_req.json()["access_token"]
+
