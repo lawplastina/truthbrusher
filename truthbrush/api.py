@@ -1,3 +1,4 @@
+import random
 import time
 from time import sleep
 from typing import Any, Iterator, List, Optional
@@ -376,7 +377,7 @@ class Api:
         user_id = self.lookup(username)["id"]
         page_counter = 0
         keep_going = True
-        backoff = 2 #defaults to 2 seconds per request, just to be safe
+        backoff = 30 #defaults to 30 seconds per request, just to be safe
         
         while keep_going:
             try:
@@ -389,11 +390,8 @@ class Api:
                     logger.debug("--------------------------")
                     logger.debug(f"{url} {params}")
                 result = self._get(url, params=params)
-                
-                # TO RESPECT RATE LIMIT: Wait 2 secs between requests
-                time.sleep(2)
-                backoff = 2 #reset to 2 if request successful
-                
+            
+                backoff = 30 #reset to 30 if request successful
                 page_counter += 1
                 
             except json.JSONDecodeError as e:
@@ -454,6 +452,12 @@ class Api:
                     logger.debug(f"{post['id']} {post['created_at']}")
 
                 yield post
+                
+            if page_counter % 10 == 0:
+                logger.info("Extended cooldown to avoid Cloudflare rate limit...")
+                time.sleep(30)
+            else:
+                time.sleep(random.uniform(4, 8))
 
     def get_auth_id(self, username: str, password: str) -> str:
         """Logs in to Truth account and returns the session token"""
